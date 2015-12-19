@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include "avl/avl.h"
 
-static int get_free_mem()
+static unsigned int get_free_mem()
 {
     FILE *f;
     int n;
@@ -28,21 +28,21 @@ static int get_free_mem()
     end = strchr(start,'\n');
     if(end==NULL) return -1;
     *end = '\0';
-    return atoi(start+8)*1024;
+    return (unsigned int)atoi(start+8) * 1024;
 }
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
-static int threshold = 1024*1024*1024; /* 1GB */
+static unsigned int threshold = 1024*1024*1024; /* 1GB */
 
 typedef struct struct_entry {
     int prio;
     int uuid;
-    int s1, s2;
+    unsigned int s1, s2;
     void *data;
 } entry;
 
-static entry *new_entry(int prio, int uuid, int s1, int s2, void *data)
+static entry *new_entry(int prio, int uuid, unsigned int s1, unsigned int s2, void *data)
 {
     entry *e;
     e = malloc(sizeof(entry));
@@ -58,32 +58,31 @@ static entry *new_entry(int prio, int uuid, int s1, int s2, void *data)
 TREE *pages_by_uuid;
 TREE *pages_by_prio;
 
-static int delete_page(void)
+static unsigned int delete_page(void)
 {
     entry *page, *ok;
-    int len;
+    unsigned int len;
     page = avl_locate_first(pages_by_prio);
-    if(!page) return -1;
+    if(!page) return 0;
     ok = avl_remove_int(pages_by_uuid, page->uuid);
-    if(!ok) return -1;
+    if(!ok) return 0;
     ok = avl_remove_int(pages_by_prio, page->prio);
-    if(!ok) return -1;
+    if(!ok) return 0;
     free(page->data);
     len = page->s1 * page->s2 * sizeof(double);
     free(page);
     return len;
 }
 
-static void delete_pages(int n_bytes)
+static void delete_pages(unsigned int n_bytes, int bg)
 {
-    int sum, deleted;
-    if(n_bytes<=0) return;
-    printf("deleting %d kb\n", n_bytes/1024);
+    unsigned int sum, deleted;
+    printf("deleting %ud kb (bg=%d)\n", n_bytes/1024, bg);
     pthread_mutex_lock(&mutex);
     sum = 0;
     do {
         deleted = delete_page();
-        if(deleted<0) break; /* failed */
+        if(deleted==0) break; /* failed */
         sum += deleted;
     } while(sum < n_bytes);
     malloc_trim(0);
@@ -92,12 +91,13 @@ static void delete_pages(int n_bytes)
 
 static void *cache(void *ptr)
 {
-    int mf;
+    unsigned int mf;
 
     while(1) {
         sleep(1);
         mf = get_free_mem();
-        delete_pages(threshold-mf);
+        if(mf < threshold)
+            delete_pages(threshold-mf, 1);
     }
     return NULL;
 }
@@ -106,6 +106,7 @@ int init(void) {
     int err;
     pthread_t thread;
 
+    setlocale(LC_NUMERIC,"C");
     pages_by_uuid = avl_tree_nodup_int(entry, uuid);
     if(!pages_by_uuid) return -1;
     pages_by_prio = avl_tree_dup_int(entry, prio);
@@ -115,16 +116,18 @@ int init(void) {
     return 0;
 }
 
-int _store(void *data, int s1, int s2, int uuid, int prio) {
-    int mf, len, ok;
+int _store(void *data, unsigned int s1, unsigned int s2, int uuid, int prio) {
+    unsigned int mf, len;
+    int ok;
     void *ptr;
     entry *page;
 
     len = s1*s2*sizeof(double);
     mf = get_free_mem();
+    printf("free mem= %d kB\n", mf/1024);
 
     if(mf < threshold) {
-        delete_pages(threshold-mf);
+        delete_pages(threshold-mf, 0);
         return -2;
     } else {
         if(mf < threshold+len) return -2;
@@ -145,7 +148,7 @@ int _store(void *data, int s1, int s2, int uuid, int prio) {
     }
 }
 
-int _get_size(int uuid, int *s1, int *s2)
+int _get_size(int uuid, unsigned int *s1, unsigned int *s2)
 {
     entry *page;
     pthread_mutex_lock(&mutex);
@@ -160,7 +163,7 @@ int _get_size(int uuid, int *s1, int *s2)
 int _fetch_to(void *buffer, int uuid)
 {
     entry *page;
-    int len;
+    unsigned int len;
     pthread_mutex_lock(&mutex);
     page = avl_locate_int(pages_by_uuid, uuid);
     if(!page) { pthread_mutex_unlock(&mutex); return -1; }
@@ -169,32 +172,3 @@ int _fetch_to(void *buffer, int uuid)
     pthread_mutex_unlock(&mutex);
     return 0;
 }
-
-
-//int fetch(int id)
-
-/*int main(int argc, char *argv[])
-{
-    pthread_t thread;
-    int ret;
-    //void *ptr;
-
-    setlocale(LC_NUMERIC,"C");
-
-    printf("start\n");
-
-    ret = pthread_create(&thread, NULL, cache, NULL);
-    assert(ret==0);
-
-    sleep(5);
-   
-    printf("main thread is doing something.\n");
-    pthread_mutex_lock(&mutex);
-    count ++;
-    pthread_mutex_unlock(&mutex);
-
-    sleep(5);
-    //pthread_join(thread, &ptr);
-
-    return 0;
-} */
