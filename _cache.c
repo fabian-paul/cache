@@ -18,15 +18,15 @@ static unsigned int get_free_mem()
     char *start, *end;
     char buffer[0x1000];
     f = fopen("/proc/meminfo","r");
-    if(!f) return -1;
+    if(!f) return 0;
     n = fread(buffer, 1, 0x1000, f);
-    if(n<1) { fclose(f); return -1; }
+    if(n<1) { fclose(f); return 0; }
     fclose(f);
     buffer[0x1000-1] = '\0';
     start = strstr(buffer, "MemFree:");
-    if(start==NULL) return -1;
+    if(start==NULL) return 0;
     end = strchr(start,'\n');
-    if(end==NULL) return -1;
+    if(end==NULL) return 0;
     *end = '\0';
     return (unsigned int)atoi(start+8) * 1024;
 }
