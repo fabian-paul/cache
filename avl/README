@@ -1,0 +1,124 @@
+
+An AVL Trees Library in C - by Walter Tross
+
+Version 3.0.1
+
+
+The following fictitious code should illustrate what you can do
+with this library (look for the functions whose name starts with avl_)
+
+>>>>>>>>>
+
+#include "avl.h"
+
+#define AVL_FOR(tree, p) for ((p) = avl_first(tree); (p); (p) = avl_next(tree))
+
+typedef struct student {
+   int id;
+   char *name;
+   float grade_avg;
+   struct student *next_student;
+} STUDENT;
+
+int student_cmp(STUDENT *s1, STUDENT *s2)
+{
+   int cmp = strcmp(s1->name, s2->name);
+   return cmp ? cmp : s1->id - s2->id;
+}
+
+void sum_grade_avg(STUDENT *student, float *p_grade_avg_sum)
+{
+   *p_grade_avg_sum += student->grade_avg;
+}
+
+int main(int argc, char *argv[])
+{
+   STUDENT *student, *other, *first_student_of_list, *donkey;
+
+   TREE *students_by_name_and_id = avl_tree_nodup    (student_cmp);
+   TREE *students_by_name        = avl_tree_dup_str  (STUDENT, name);
+   TREE *students_by_id          = avl_tree_nodup_int(STUDENT, id);
+   TREE *students_by_grade_avg   = avl_tree_dup_float(STUDENT, grade_avg);
+
+   while ((student = read_student())) {
+      avl_insert(students_by_name_and_id, student);
+      avl_insert(students_by_name,        student);
+      avl_insert(students_by_id,          student);
+      avl_insert(students_by_grade_avg,   student);
+   }
+   AVL_FOR(students_by_name, student) { // duplicate names: in insertion order
+      printf("%8d %s\n", student->id, student->name);
+   }
+   int id = argc > 1 ? atoi(argv[1]) : 1;
+   student = avl_locate_int(students_by_id, id);
+   if (student) printf("grade avg of student %d: %f\n", id, student->grade_avg);
+
+   other = avl_locate_gt_float(students_by_grade_avg, student->grade_avg);
+   if (other) printf("first student with better grade avg: %d\n", other->id);
+
+   for (student = avl_start(students_by_name, "M"); student;
+        student = avl_next (students_by_name)) {
+      printf("%s\n", student->name);
+   }
+
+   float grade_avg_sum = 0.0;
+   avl_do_w_ctx(students_by_grade_avg, sum_grade_avg, &grade_avg_sum);
+   printf("overall: %f\n", grade_avg_sum / avl_nodes(students_by_grade_avg));
+
+   first_student_of_list = avl_link(students_by_id, STUDENT, next_student);
+
+   donkey = avl_locate_first(students_by_grade_avg);
+   if (donkey) printf("student with lowest grade avg: %d\n", donkey->id);
+
+   TREE *students_before_donkey_removal = avl_copy(students_by_name_and_id);
+   avl_remove(students_by_name_and_id, donkey);
+   avl_remove_int(students_by_id, donkey->id);
+   avl_empty(students_by_name);
+   assert( !avl_nodes(students_by_name));
+   avl_free(students_by_grade_avg);
+   students_by_grade_avg = NULL;
+
+<<<<<<<<<
+
+
+The comments in the avl.h file are sufficient for most purposes.
+Further information is contained in the MANUAL file.
+
+
+Please report any problems you may encounter to waltertross at gmail.
+
+
+CHANGELOG (version numbers follow the "semantic versioning" convention):
+
+v 3.0.1:
+ - changed default AVL_NODE_INCREMENT_SHIFT from 2 to 1
+
+v 3.0.0:
+ - Removed sizeof(void *) == sizeof(long) constraint
+ - Removed global variables and improved memory management
+ - Compact nodes (3 pointers or 3 pointers and 1 long, depending on tree type)
+ - Fast strings (first sizeof(long) chars are compared in a single operation)
+ - Definable AVL_MALLOC and AVL_FREE (defaulting to malloc and free)
+ - Added float and double trees
+ - Renamed avl_backscan() -> avl_rev_scan()
+ - Renamed avl_[back]walk() -> avl[_rev]_scan_w_ctx()
+ - Added avl[_rev]_do[_w_ctx]()
+ - Renamed avl_backstart() -> avl_rev_start()
+ - Renamed avl_backlink() -> avl_rev_link()
+ - Removed avl_release()
+ - Renamed avl_reset() -> avl_empty() (which now frees node memory)
+ - Renamed avl_close() -> avl_free() (which now frees all memory)
+ - General overhaul
+
+v 2.0.0:
+ - Removed function macros from avl.h except for avl_*_tree*() and avl_*link().
+   This makes avl_locate_int() etc. necessary for integer keys.
+   (This is also in preparation for sizeof(void*)!=sizeof(long).)
+ - Changed avl_[back]scan() to return the data pointer when the callback
+   returns true.
+ - Added avl_[back]walk() (like avl_[back]scan(), but with a context pointer
+   for the callback).
+ - Renamed avl_f_link() to avl_linked_list().
+
+v 1.0.0:
+   Legacy version, mostly unaltered since 1991
