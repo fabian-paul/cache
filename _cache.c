@@ -13,10 +13,12 @@
 
 static unsigned int get_free_mem()
 {
+    struct mallinfo mi;
     FILE *f;
     int n;
     char *start, *end;
     char buffer[0x1000];
+    mi = mallinfo();
     f = fopen("/proc/meminfo","r");
     if(!f) return 0;
     n = fread(buffer, 1, 0x1000, f);
@@ -28,12 +30,12 @@ static unsigned int get_free_mem()
     end = strchr(start,'\n');
     if(end==NULL) return 0;
     *end = '\0';
-    return (unsigned int)atoi(start+8) * 1024;
+    return (unsigned int)atoi(start+8) * 1024 + mi.fordblks;
 }
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
-static unsigned int threshold = 1024*1024*1024; /* 1GB */
+static unsigned int threshold = 1024*1024*1024/2; /* 1/2GB */
 
 typedef struct struct_entry {
     int prio;
@@ -121,10 +123,12 @@ int _store(void *data, unsigned int s1, unsigned int s2, int uuid, int prio) {
     int ok;
     void *ptr;
     entry *page;
+    struct mallinfo mi;
 
     len = s1*s2*sizeof(double);
     mf = get_free_mem();
-    printf("free mem= %d kB\n", mf/1024);
+    mi = mallinfo();
+    printf("free mem= %u + %u kB\n", mf/1024, mi.fordblks/1024);
 
     if(mf < threshold) {
         delete_pages(threshold-mf, 0);

@@ -4,6 +4,6 @@ from time import sleep
 
 for i in range(1024):
    print i
-   z = np.zeros((1024*10,10*1024))
+   z = np.zeros((1024,10*1024))
    cache.cache.store(z, i, 0)
    sleep(0.5)

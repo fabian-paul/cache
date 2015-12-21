@@ -13,6 +13,7 @@ def store(double[:,::1] data, uuid, prio):
     res = _store(&c_data[0,0], data.shape[0], data.shape[1], uuid, prio)
     if res==-2:
         print 'cache is full'
+        # TODO: cg.collect() and retry!
     if res not in [0,-2]:
         raise Exception('failed to store')
     
